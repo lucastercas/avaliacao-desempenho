@@ -5,23 +5,14 @@ import argparse
 import random
 import time
 
-# Variaveis do aeroporto
-num_pistas = 1
-num_postos = 2
-num_fingers = 2
-
-# Variaveis da simulação
-tmp_total = 50
-
 # Variaveis dos avioes
-tmp_espera = 5
 tmp_md_pouso = 1
-tmp_md_desembarque = 0.2
-tmp_md_abastecimento = 0.2
+tmp_md_desembarque = 0.5
+tmp_md_abastecimento = 1
 tmp_md_decolagem = 1
 
 # Metricas
-total_avioes = 0
+tmp_total = 0
 util_pista_pouso = 0
 util_fingers = 0
 util_postos = 0
@@ -30,12 +21,12 @@ util_pista_decolagem = 0
 exponencial = lambda x: random.expovariate(1 / x)
 
 def comecar_avioes(env):
-    global total_avioes, tmp_espera
-    while True:
-        nv_aviao = Aviao(env, total_avioes)
-        total_avioes += 1
+    global tmp_espera, num_avioes
+    for i in range(num_avioes):
+        nv_aviao = Aviao(env, i)
         env.process(nv_aviao.run())
         yield env.timeout(exponencial(tmp_espera))
+    return 'end'
 
 class Aviao(object):
     def __init__(self, env, idx):
@@ -112,19 +103,22 @@ class Aviao(object):
         yield self.env.timeout(exponencial(tmp_md_abastecimento))
 
 def main():
-    global num_pistas, num_fingers, num_postos, tmp_espera
+    global num_pistas, num_fingers, num_postos, tmp_espera, num_avioes
 
     parser = argparse.ArgumentParser(description='Simular um aeroporto. Ex: ./aeroporto.py --pistas 2 --postos 2 --fingers 2 --espera 5')
-
     parser.add_argument('--pistas', dest='pistas', required=True, help="Numero de pistas no aeroporto")
     parser.add_argument('--postos', dest='postos', required=True, help="Numero de postos de abastecimento no aeroporto")
     parser.add_argument('--fingers', dest='fingers', required=True, help="Numero de fingers no aeroporto")
     parser.add_argument('--espera', dest='espera', required=True, help="Tempo de espera entre chegadas de Avioes")
-
     args = parser.parse_args()
+
+    # Parametros dos Sistema:
     num_pistas = int(args.pistas)
     num_fingers = int(args.fingers)
     num_postos = int(args.postos)
+
+    # Carga de Trabalho:
+    num_avioes = 30
     tmp_espera = int(args.espera)
 
     seed = 10
@@ -137,8 +131,9 @@ def main():
     finger = simpy.Resource(env, capacity=num_fingers)
     posto = simpy.Resource(env, capacity=num_postos)
 
-    env.process(comecar_avioes(env))
-    env.run(until=tmp_total)
+    sim = env.process(comecar_avioes(env))
+    env.run(until=sim)
+    tmp_total = env.now
 
     global util_pista_pouso, util_fingers, util_postos, util_pista_decolagem
 
@@ -156,7 +151,7 @@ def main():
         f'\n\tVazao: {total_avioes / tmp_total}'
         )
     else:
-        print(f'{tmp_total},{total_avioes},{num_pistas},{util_pista_pouso:.2f},{util_pista_decolagem:.2f},{num_postos},{util_postos:.2f},{num_fingers},{util_fingers:.2f}')
+        print(f'{tmp_total:.2f},{num_avioes},{num_pistas},{util_pista_pouso/tmp_total:.2f},{util_pista_decolagem/tmp_total:.2f},{((util_pista_pouso+util_pista_decolagem)/tmp_total):.2f},{num_postos},{util_postos/tmp_total:.2f},{num_fingers},{util_fingers/tmp_total:.2f}')
 
 if __name__ == "__main__":
     main()
