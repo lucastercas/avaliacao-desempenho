@@ -1,11 +1,11 @@
 #!/bin/bash
 
-for fingers in 1 3 5; do
-  for postos in 1 3 5; do
-    for pistas in 1 3 5; do
-      for espera in 1 2 5 8; do
-        #echo $pistas $postos $fingers $espera
-        python -O aeroporto.py --pistas $pistas --postos $postos --fingers $fingers --espera $espera >> dados.csv
+for espera in 30 60 90 ; do
+  echo "tmp_total,pistas,fingers,postos" > "$espera-espera.csv"
+  for pistas in 1 3 5; do
+    for fingers in 1 3 5; do
+      for postos in 1 3 5; do
+        python aeroporto.py --pistas $pistas --postos $postos --fingers $fingers --espera $espera >> "$espera-espera.csv"
       done
     done
   done
