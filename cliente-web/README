@@ -1,0 +1,4 @@
+instalation:
+```
+pip install -r requirements
+```
