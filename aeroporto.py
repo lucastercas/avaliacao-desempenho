@@ -125,7 +125,8 @@ def main():
 
 
     sim = env.process(comecar_avioes(env))
-    env.run(until=sim)
+    print(env.events.PENDING)
+    env.run()
     tmp_total = env.now
 
     #print(f'{tmp_total:.2f},{num_avioes},{num_pistas},{util_pista_pouso/tmp_total:.2f},{util_pista_decolagem/tmp_total:.2f},{((util_pista_pouso+util_pista_decolagem)/tmp_total):.2f},{num_postos},{util_postos/tmp_total:.2f},{num_fingers},{util_fingers/tmp_total:.2f}')
