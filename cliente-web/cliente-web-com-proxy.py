@@ -7,24 +7,6 @@ import argparse
 import matplotlib.pyplot as plt
 import numpy as np
 
-# Parametros:
-larguraBandaLan = 10 #Mbps
-ovhdFrame = 18 # Overhead do Frame
-mss = 1460 # Maximum Segment Size TCP (bytes)
-latenciaRoteador = 50 #us/pacote
-larguraBandaLink = 56 #Kbps
-rtt  = 100 #ms
-taxaDadosInternet = 20 #Kbps
-taxaBrowser = 0.3 #req/set
-numClientes = 150
-porcentagemAtiva = 0.1
-reqHttpMedia = 100 #bytes
-
-# Parametros Proxy:
-tempoAcertoCPU = 0.25 #ms
-tempoFaltaCPU = 0.5 #ms
-tempoDisco = 6 #ms/Kb lido
-
 def tamanhoDoc():
     r = random.random()
     if r < 0.35:
@@ -35,53 +17,73 @@ def tamanhoDoc():
         return 80
     return 800
 
-def quantDatagrams(mensagem):
-    return mensagem / mss
-
-def overhead(mensagem):
-    ovhdTCP =  20 # Overhead do TCP
-    ovhdIP = 20 # Overhead do IP
-    return quantDatagrams(mensagem) * (ovhdTCP + ovhdIP + ovhdFrame)
-
-def tempoRede(mensagem, largura):
-    return 8 * (mensagem + overhead(mensagem)) / (1000000 * largura)
 
 class Web(object):
-    def __init__(self, env, numLan, numLinkSaida, numLinkEntrada):
+    def __init__(self, env, tempoDisco=6, taxaAcerto=0.25):
         self.env = env
-        self.resourceLan = simpy.Resource(env, numLan)
-        self.resourceOutputLink = simpy.Resource(env, numLinkSaida)
-        self.resourceInputLink = simpy.Resource(env, numLinkEntrada)
+        # Parametros Net:
+        self.larguraBandaLan = 10 #Mbps
+        self.ovhdFrame = 18 # Overhead do Frame
+        self.ovhdTCP =  20 # Overhead do TCP
+        self.ovhdIP = 20 # Overhead do IP
+        self.mss = 1460 # Maximum Segment Size TCP (bytes)
+        self.latenciaRoteador = 50 #us/pacote
+        self.larguraBandaLink = 56 #Kbps
+        self.rtt  = 100 #ms
+        self.taxaDadosInternet = 20 #Kbps
+        self.taxaBrowser = 0.3 #req/set
+        self.porcentagemAtiva = 0.1
+        self.reqHttpMedia = 100 #bytes
+
+        # Parametros Proxy:
+        self.taxaAcerto = taxaAcerto
+        self.tempoAcertoCPU = 0.25 #ms
+        self.tempoFaltaCPU = 0.5 #ms
+        self.tempoDisco = tempoDisco #ms/Kb lido
+
+        # Recursos
+        self.resourceLan = simpy.Resource(env, 1)
+        self.resourceOutputLink = simpy.Resource(env, 1)
+        self.resourceInputLink = simpy.Resource(env, 1)
         #self.cpuResource = simpy.Resource()
         #self.discoResource = simpy.Resource()
 
+    def quantDatagrams(self, mensagem):
+        return mensagem / self.mss
+
+    def overhead(self, mensagem):
+        return self.quantDatagrams(mensagem) * (self.ovhdTCP + self.ovhdIP + self.ovhdFrame)
+
+    def tempoRede(self, mensagem, largura):
+        return 8 * (mensagem + self.overhead(mensagem)) / (1000000 * largura)
+
     # Fila 2 -> 3
     def requestLan(self):
-        yield self.env.timeout(tempoRede(reqHttpMedia, larguraBandaLan))
+        yield self.env.timeout( self.tempoRede(self.reqHttpMedia, self.larguraBandaLan))
 
     # Fila 3 -> 4
     def requestRouter(self):
-        yield self.env.timeout(latenciaRoteador / 1000000)
+        yield self.env.timeout(self.latenciaRoteador / 1000000)
 
     # Fila 4 -> 5
     def linkOutput(self):
-        yield self.env.timeout(tempoRede(reqHttpMedia, larguraBandaLink) + 3 * tempoRede(0.0001, larguraBandaLink))
+        yield self.env.timeout(self.tempoRede(self.reqHttpMedia, self.larguraBandaLink) + 3 * self.tempoRede(0.0001, self.larguraBandaLink))
 
     # Fila 5 -> 6
     def isp(self, tamDoc):
-        yield self.env.timeout((2 * rtt / 1000) + (tamDoc / taxaDadosInternet))
+        yield self.env.timeout((2 * self.rtt / 1000) + (tamDoc / self.taxaDadosInternet))
 
     # Fila 6 -> 3
     def linkInput(self, tamDoc):
-        yield self.env.timeout(tempoRede(tamDoc, larguraBandaLink) + 2 * tempoRede(0.0001, larguraBandaLink))
+        yield self.env.timeout(self.tempoRede(tamDoc, self.larguraBandaLink) + 2 * self.tempoRede(0.0001, self.larguraBandaLink))
 
     # Fila 3 -> 2
     def responseRouter(self, tamDoc):
-        yield self.env.timeout( (quantDatagrams(1204 * tamDoc) + 6) * latenciaRoteador * 0.000001)
+        yield self.env.timeout( (self.quantDatagrams(1204 * tamDoc) + 6) * self.latenciaRoteador * 0.000001)
 
     # Fila 2 -> 1
     def responseLan(self, tamDoc):
-        yield self.env.timeout(tempoRede(1024 * tamDoc, larguraBandaLan))
+        yield self.env.timeout(self.tempoRede(1024 * tamDoc, self.larguraBandaLan))
 
     # Fila 8 -> 7 (tanto hit qnt miss)
     def disco(self, tamDoc):
@@ -105,7 +107,7 @@ def cliente(env, nome, web):
     LAN_RESPONSE_SERVICE_TIME = 0
 
     tamDoc = tamanhoDoc()
-    print(f'{env.now:.2f}: {nome}[entrada]')
+    #print(f'{env.now:.2f}: {nome}[entrada]')
 
     startWait = env.now
     with web.resourceLan.request() as resourceLan:
@@ -151,42 +153,69 @@ def cliente(env, nome, web):
         yield env.process(web.responseLan(tamDoc))
         LAN_RESPONSE_SERVICE_TIME += env.now - startService
 
-    print(f'{env.now:.2f}: {nome}[saida]')
+    TOTAL_TIME = LAN_REQUEST_WAIT_TIME + LAN_REQUEST_SERVICE_TIME + ROUTER_REQUEST_SERVICE_TIME +OUTPUT_LINK_WAIT_TIME + OUTPUT_LINK_SERVICE_TIME + ISP_SERVICE_TIME + INPUT_LINK_WAIT_TIME + INPUT_LINK_SERVICE_TIME + ROUTER_RESPONSE_SERVICE_TIME + LAN_RESPONSE_WAIT_TIME+ LAN_RESPONSE_SERVICE_TIME
 
-def setup_clients(env, web):
-    numClientes = 0
-    while 1:
+def plot(xlabel, ylabel):
+    plt.plot([1, 2, 3, 4])
+    plt.ylabel(ylabel)
+    plt.xlabel(xlabel)
+
+    plt.show()
+
+def run(env, taxaAcerto, tempoDisco, numClientes):
+    web = Web(env, tempoDisco, taxaAcerto)
+    for i in range(numClientes):
+        env.process(cliente(env, i, web))
         yield env.timeout(0.2)
-        env.process(cliente(env, numClientes, web))
-        numClientes += 1
 
-def run(taxa_acerto):
-    num_lan = 1
-    num_link_saida = 1
-    num_link_entrada = 1
-    sim_time = 10
-    # Set up the env:
-    env = simpy.Environment()
-    web = Web(env, num_lan, num_link_saida, num_link_entrada)
-    # Set up the clients:
-    env.process(setup_clients(env, web))
-    # Run simulation
-    env.run(until = sim_time)
+def setup(taxaAcerto):
+    numClientes = 20
+    tempoDisco = 6
+    numSimulations = 5
+
+    TOTAL_TX_PROCESSAMENTO = 0
+    TOTAL_SIM_TIME= 0
+    for i in range(numSimulations):
+        random.seed()
+        env = simpy.Environment()
+        print(f'## Simulacao: {i} ##')
+
+        startSimulation = env.now
+        env.process(run(env, taxaAcerto, tempoDisco, numClientes))
+        env.run()
+        simTime = env.now - startSimulation
+        print(f'\tSim Time: {simTime}')
+
+        TOTAL_SIM_TIME += simTime
+        TOTAL_TX_PROCESSAMENTO += numClientes / simTime
+
+    MD_SIM_TIME = TOTAL_SIM_TIME / numSimulations
+    MD_TX_PROCESSAMENTO = TOTAL_TX_PROCESSAMENTO / numSimulations
+
+    print(f"Md Sim Time: {MD_SIM_TIME}")
+    print(f'Md Req/s: {MD_TX_PROCESSAMENTO}')
 
 def main():
     # Parse the Arguments
     parser = argparse.ArgumentParser(description='Description')
     parser.add_argument('--acerto', metavar='taxa_acerto', type=float, help="Taxa de acerto do cache", default=0.5)
     args = parser.parse_args()
-    print(args)
+    #taxa_acerto = args.acerto
+    taxaAcerto = 0.25
+    numClientes = 150
+
+
+    setup(taxaAcerto)
+
+    # Setup matplotlib
+    params = {
+        'ylabel': 'Tempo de Processamento',
+        'xlabel': 'Tempo de Serviço Disco (ms/Kb lido)'
+    }
+    #plot(**params)
+
+if __name__ == "__main__":
 
     print('===== Beginning Simulation =====')
-    # Setup matplotlib
-
-    taxa_acerto = args.acerto
-    #run(taxa_acerto)
-
-print('iae')
-if __name__ == "__main__":
     main()
 

@@ -123,8 +123,7 @@ def main():
     finger = simpy.Resource(env, capacity=num_fingers)
     posto = simpy.Resource(env, capacity=num_postos)
 
-
-    sim = env.process(comecar_avioes(env))
+    env.process(comecar_avioes(env))
     print(env.events.PENDING)
     env.run()
     tmp_total = env.now
