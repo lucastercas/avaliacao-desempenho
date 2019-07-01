@@ -7,7 +7,7 @@ def plot_each(title,ylabel, yvalues, xlabel, xvalues, fileName):
     plt.plot(xvalues, yvalues)
     plt.ylabel(ylabel)
     plt.xlabel(xlabel)
-    plt.savefig(f'graphics/each/{fileName}')
+    plt.savefig(f'graphics/{fileName}')
     plt.clf()
 
 def plot_all(title, ylabel, yvalues, xlabel, xvalues, fileName, legend):

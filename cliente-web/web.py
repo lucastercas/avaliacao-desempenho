@@ -1,7 +1,7 @@
 import simpy
 
 class Web(object):
-    def __init__(self, env, tempoDisco=6, taxaAcerto=0.25):
+    def __init__(self, env, tempoDisco=6, taxaAcerto=0.25, larguraBandaLink=56):
         self.env = env
         # Parametros Net:
         self.larguraBandaLan = 10 #Mbps
@@ -10,7 +10,7 @@ class Web(object):
         self.ovhdIP = 20 # Overhead do IP
         self.mss = 1460 # Maximum Segment Size TCP (bytes)
         self.latenciaRoteador = 50 #us/pacote
-        self.larguraBandaLink = 56 #Kbps
+        self.larguraBandaLink = larguraBandaLink #Kbps
         self.rtt  = 100 #ms
         self.taxaDadosInternet = 20 #Kbps
         self.taxaBrowser = 0.3 #req/set
@@ -19,8 +19,8 @@ class Web(object):
 
         # Parametros Proxy:
         self.taxaAcerto = taxaAcerto
-        self.tempoAcertoCPU = 0.25 #ms
-        self.tempoFaltaCPU = 0.5 #ms
+        self.tempoAcertoCPU = 0.025 #ms
+        self.tempoFaltaCPU = 0.05 #ms
         self.tempoDisco = tempoDisco #ms/Kb lido
         self.taxaAcerto = taxaAcerto
 
